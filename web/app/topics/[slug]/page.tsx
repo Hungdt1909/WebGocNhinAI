@@ -23,7 +23,7 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(h / 24)} ngày trước`
 }
 
-function excerpt(text: string, max = 200) {
+function excerpt(text: string, max = 180) {
   const clean = text.replace(/\s+/g, ' ').trim()
   return clean.length <= max ? clean : clean.slice(0, max).trimEnd() + '…'
 }
@@ -38,61 +38,57 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
 
   return (
     <div>
-      <div className="mb-6">
-        <Link href="/" className="text-sm text-blue-600 hover:underline">← Trang chủ</Link>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-2xl">{topic.emoji}</span>
-          <h1 className="text-2xl font-bold text-gray-900">{topic.name}</h1>
-        </div>
-        <p className="text-gray-500 text-sm mt-1">
-          {articles.length} bài trong 24 giờ qua • {topic.description}
-        </p>
+      {/* Breadcrumb */}
+      <div className="text-xs text-gray-400 mb-4">
+        <Link href="/" className="hover:text-blue-700">Trang chủ</Link>
+        <span className="mx-1">/</span>
+        <span className="text-gray-600">{topic.name}</span>
       </div>
 
-      {/* Topic tabs for quick navigation */}
-      <div className="flex gap-2 mb-6 flex-wrap">
+      {/* Section header */}
+      <div className="border-b-2 border-gray-900 pb-2 mb-6 flex items-baseline justify-between">
+        <h1 className="font-black text-sm uppercase tracking-widest text-gray-900">{topic.name}</h1>
+        <span className="text-xs text-gray-400">{articles.length} bài trong 24 giờ qua</span>
+      </div>
+
+      {/* Topic pills */}
+      <div className="flex flex-wrap gap-2 mb-6">
         {TOPICS.map((t) => (
           <Link
             key={t.slug}
             href={`/topics/${t.slug}`}
-            className={`text-sm px-3 py-1.5 rounded-full border transition ${
+            className={`text-xs px-3 py-1 border transition-colors ${
               t.slug === slug
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                ? 'bg-gray-900 text-white border-gray-900'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-gray-600 hover:text-gray-900'
             }`}
           >
-            {t.emoji} {t.name}
+            {t.name}
           </Link>
         ))}
       </div>
 
       {articles.length === 0 ? (
-        <div className="bg-gray-50 rounded-lg p-8 text-center text-gray-400">
-          Không có bài viết nào trong 24 giờ qua.
-        </div>
+        <p className="text-gray-400 text-sm py-8 text-center">Không có bài viết nào trong 24 giờ qua.</p>
       ) : (
-        <div className="grid gap-3">
+        <div className="space-y-5">
           {articles.map((a) => (
             <a
               key={a.id}
               href={a.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:shadow-sm transition group"
+              className="block group border-b border-gray-100 pb-5 last:border-0"
             >
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                  {a.source}
-                </span>
-                <span className="text-xs text-gray-400">{timeAgo(a.published_at || a.collected_at)}</span>
-              </div>
-              <p className="font-semibold text-gray-900 group-hover:text-blue-700 leading-snug mb-1.5">
+              <p className="text-xs text-gray-400 mb-1">
+                {a.source} · {timeAgo(a.published_at || a.collected_at)}
+              </p>
+              <p className="font-bold text-gray-900 group-hover:text-blue-700 leading-snug text-base">
                 {a.title}
               </p>
               {a.content && (
-                <p className="text-sm text-gray-500 leading-relaxed">{excerpt(a.content)}</p>
+                <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">{excerpt(a.content)}</p>
               )}
-              <p className="text-xs text-blue-500 mt-2">Đọc bài gốc →</p>
             </a>
           ))}
         </div>

@@ -1,17 +1,29 @@
 import Link from 'next/link'
-import { supabase, type Article } from '@/lib/supabase'
+import { supabase, type Article, type Report } from '@/lib/supabase'
 import { TOPICS, categorizeArticle } from '@/lib/topics'
 
-async function getTodayArticles(): Promise<Article[]> {
+type TopEvent = {
+  rank: number
+  title: string
+  summary: string
+  sources: string[]
+  why_matters?: string
+  risks?: string[]
+  opportunities?: string[]
+}
+
+async function getTodayData(): Promise<{ report: Report | null; articles: Article[] }> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { data, error } = await supabase
-    .from('articles')
-    .select('*')
-    .gte('collected_at', since)
-    .order('published_at', { ascending: false })
-    .limit(200)
-  if (error) throw error
-  return data ?? []
+
+  const [reportRes, articleRes] = await Promise.all([
+    supabase.from('reports').select('*').order('report_date', { ascending: false }).limit(1).single(),
+    supabase.from('articles').select('*').gte('collected_at', since).order('published_at', { ascending: false }).limit(200),
+  ])
+
+  return {
+    report: reportRes.data ?? null,
+    articles: articleRes.data ?? [],
+  }
 }
 
 function timeAgo(dateStr: string) {
@@ -22,114 +34,133 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(h / 24)} ngày trước`
 }
 
-function excerpt(text: string, max = 160) {
+function excerpt(text: string, max = 140) {
   const clean = text.replace(/\s+/g, ' ').trim()
   return clean.length <= max ? clean : clean.slice(0, max).trimEnd() + '…'
 }
 
 export default async function HomePage() {
-  let articles: Article[] = []
-  let fetchError: string | null = null
+  const { report, articles } = await getTodayData()
 
-  try {
-    articles = await getTodayArticles()
-  } catch (e) {
-    fetchError = e instanceof Error ? e.message : 'Lỗi không xác định'
-  }
+  const topEvents: TopEvent[] = Array.isArray(report?.top_events) ? (report.top_events as TopEvent[]) : []
 
-  // Group articles by topic
-  const grouped: Record<string, Article[]> = {
-    ai: [], 'kinh-te': [], vang: [], 'cong-nghe': [],
-  }
+  const grouped: Record<string, Article[]> = { ai: [], 'kinh-te': [], vang: [], 'cong-nghe': [] }
   for (const a of articles) {
-    const slug = categorizeArticle(a.title, a.source)
-    grouped[slug].push(a)
+    grouped[categorizeArticle(a.title, a.source)].push(a)
   }
 
   return (
-    <div>
-      {/* Header stats */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Tin tức hôm nay</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {articles.length} bài từ {new Set(articles.map((a) => a.source)).size} nguồn •{' '}
-          {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
-        <Link href="/reports" className="text-sm text-blue-600 hover:underline mt-1 inline-block">
-          Xem báo cáo phân tích AI →
-        </Link>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main column */}
+      <div className="lg:col-span-2 space-y-10">
+
+        {/* AI Analysis — top events */}
+        {topEvents.length > 0 && (
+          <section>
+            <SectionHeader title="Bản tin phân tích" date={report?.report_date} href="/reports" />
+            <div className="space-y-5">
+              {topEvents.slice(0, 5).map((ev) => (
+                <div key={ev.rank} className="border-b border-gray-100 pb-5 last:border-0">
+                  <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">
+                    Sự kiện {ev.rank}
+                  </span>
+                  <h3 className="font-bold text-gray-900 mt-1 leading-snug text-base">
+                    {ev.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">{ev.summary}</p>
+                  {ev.sources?.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      Nguồn: {ev.sources.join(' · ')}
+                    </p>
+                  )}
+                </div>
+              ))}
+              {topEvents.length > 5 && (
+                <Link href="/reports" className="text-sm text-blue-700 hover:underline block pt-1">
+                  Xem thêm {topEvents.length - 5} sự kiện trong báo cáo đầy đủ →
+                </Link>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Kinh tế VN — biggest topic */}
+        <TopicSection
+          slug="kinh-te"
+          name="Kinh tế Việt Nam"
+          articles={grouped['kinh-te']}
+          limit={5}
+        />
       </div>
 
-      {fetchError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm mb-6">
-          Không thể tải dữ liệu: {fetchError}
-        </div>
-      )}
+      {/* Sidebar */}
+      <aside className="space-y-8">
+        {/* AI */}
+        <TopicSection slug="ai" name="Trí tuệ nhân tạo" articles={grouped['ai']} limit={4} compact />
+        {/* Vàng */}
+        <TopicSection slug="vang" name="Vàng" articles={grouped['vang']} limit={4} compact />
+        {/* Công nghệ */}
+        <TopicSection slug="cong-nghe" name="Khoa học & Công nghệ" articles={grouped['cong-nghe']} limit={4} compact />
+      </aside>
+    </div>
+  )
+}
 
-      {/* Topic sections */}
-      <div className="space-y-10">
-        {TOPICS.map((topic) => {
-          const topicArticles = grouped[topic.slug] ?? []
-          const preview = topicArticles.slice(0, 4)
-
-          return (
-            <section key={topic.slug}>
-              {/* Section header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{topic.emoji}</span>
-                  <h2 className="text-lg font-bold text-gray-900">{topic.name}</h2>
-                  <span className="text-xs text-gray-400 font-normal ml-1">
-                    {topicArticles.length} bài
-                  </span>
-                </div>
-                {topicArticles.length > 4 && (
-                  <Link
-                    href={`/topics/${topic.slug}`}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    Xem tất cả {topicArticles.length} bài →
-                  </Link>
-                )}
-              </div>
-
-              {preview.length === 0 ? (
-                <p className="text-sm text-gray-400 italic py-2">Không có bài mới hôm nay.</p>
-              ) : (
-                <div className="grid gap-3">
-                  {preview.map((a) => (
-                    <ArticleCard key={a.id} article={a} />
-                  ))}
-                </div>
-              )}
-            </section>
-          )
-        })}
+function SectionHeader({ title, date, href }: { title: string; date?: string; href?: string }) {
+  return (
+    <div className="flex items-baseline justify-between border-b-2 border-gray-900 pb-2 mb-4">
+      <h2 className="font-black text-sm uppercase tracking-widest text-gray-900">{title}</h2>
+      <div className="flex items-center gap-3">
+        {date && <span className="text-xs text-gray-400">{date}</span>}
+        {href && (
+          <Link href={href} className="text-xs text-blue-700 hover:underline">
+            Xem tất cả
+          </Link>
+        )}
       </div>
     </div>
   )
 }
 
-function ArticleCard({ article: a }: { article: Article }) {
+function TopicSection({
+  slug, name, articles, limit, compact = false,
+}: {
+  slug: string
+  name: string
+  articles: Article[]
+  limit: number
+  compact?: boolean
+}) {
+  const preview = articles.slice(0, limit)
+
   return (
-    <a
-      href={a.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:shadow-sm transition group"
-    >
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-          {a.source}
-        </span>
-        <span className="text-xs text-gray-400">{timeAgo(a.published_at || a.collected_at)}</span>
-      </div>
-      <p className="font-semibold text-gray-900 group-hover:text-blue-700 leading-snug mb-1.5">
-        {a.title}
-      </p>
-      {a.content && (
-        <p className="text-sm text-gray-500 leading-relaxed">{excerpt(a.content)}</p>
+    <section>
+      <SectionHeader title={name} href={`/topics/${slug}`} />
+      {preview.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">Không có bài mới hôm nay.</p>
+      ) : (
+        <div className="space-y-4">
+          {preview.map((a) => (
+            <a
+              key={a.id}
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block group"
+            >
+              <p className="text-xs text-gray-400 mb-0.5">
+                {a.source} · {timeAgo(a.published_at || a.collected_at)}
+              </p>
+              <p className={`font-semibold text-gray-900 group-hover:text-blue-700 leading-snug ${compact ? 'text-sm' : 'text-base'}`}>
+                {a.title}
+              </p>
+              {!compact && a.content && (
+                <p className="text-sm text-gray-500 mt-1 leading-relaxed">{excerpt(a.content)}</p>
+              )}
+            </a>
+          ))}
+        </div>
       )}
-    </a>
+    </section>
   )
 }
