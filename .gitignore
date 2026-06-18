@@ -10,3 +10,4 @@ venv/
 node_modules/
 .next/
 .vercel/
+web/tsconfig.tsbuildinfo
