@@ -1,19 +1,12 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import NavBar from '@/components/NavBar'
 
 export const metadata: Metadata = {
   title: 'Vietnam Market Intelligence',
   description: 'Tin tức & phân tích thị trường Việt Nam hàng ngày',
   icons: { icon: '/favicon.svg' },
 }
-
-const NAV = [
-  { href: '/', label: 'Trang chủ', color: 'hover:text-gray-900' },
-  { href: '/topics/kinh-te', label: 'Kinh tế', color: 'hover:text-green-700 hover:border-b-2 hover:border-green-700' },
-  { href: '/topics/vang', label: 'Vàng', color: 'hover:text-amber-600 hover:border-b-2 hover:border-amber-600' },
-  { href: '/topics/cong-nghe', label: 'Khoa học & Công nghệ', color: 'hover:text-cyan-700 hover:border-b-2 hover:border-cyan-700' },
-  { href: '/reports', label: 'Báo cáo AI', color: 'hover:text-red-600 hover:border-b-2 hover:border-red-600' },
-]
 
 function BarChartIcon() {
   return (
@@ -36,12 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi">
       <body className="bg-gray-50 min-h-screen">
         <header className="bg-white">
-          {/* Top date bar */}
           <div className="bg-gray-900 text-gray-300 text-xs py-1.5">
             <div className="max-w-5xl mx-auto px-4">{today}</div>
           </div>
 
-          {/* Brand */}
           <div className="border-b-2 border-gray-900 py-4">
             <div className="max-w-5xl mx-auto px-4 flex items-center justify-center gap-3">
               <BarChartIcon />
@@ -52,23 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
 
-          {/* Nav */}
-          <nav className="border-b border-gray-200 bg-white">
-            <div className="max-w-5xl mx-auto px-4">
-              <ul className="flex justify-center gap-0">
-                {NAV.map((item) => (
-                  <li key={item.href}>
-                    <a
-                      href={item.href}
-                      className={`flex items-center px-5 py-3 font-semibold text-xl text-gray-600 transition-colors ${item.color}`}
-                    >
-                      {item.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </nav>
+          <NavBar />
         </header>
 
         <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
