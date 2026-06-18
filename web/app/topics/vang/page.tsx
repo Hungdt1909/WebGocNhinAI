@@ -3,8 +3,8 @@ import { supabase, type Article } from '@/lib/supabase'
 import { categorizeArticle } from '@/lib/topics'
 import GoldPriceWidget, { type GoldDataPoint } from '@/components/GoldPriceWidget'
 
-const LUONG_PER_OZ = 1.2057   // 1 lượng = 37.5g = 1.2057 troy oz
-const SJC_PREMIUM = 10_000_000 // ~10 triệu phụ trội SJC so với quốc tế
+const LUONG_PER_OZ = 1.2057
+const SJC_PREMIUM = 10_000_000
 
 // --- Data fetching ---
 
@@ -35,7 +35,6 @@ function toSJC(xauUSD: number, usdVND: number): number {
   return Math.round(xauUSD * LUONG_PER_OZ * usdVND + SJC_PREMIUM)
 }
 
-// Linear regression slope & intercept
 function linReg(y: number[]) {
   const n = y.length
   const xMean = (n - 1) / 2
@@ -58,7 +57,6 @@ function buildForecast(prices: number[], usdVND: number, lastDate: Date): Foreca
     const prev = i === 0 ? lastActual : toSJC(intercept + slope * (recent.length + i - 1), usdVND)
     const d = new Date(lastDate)
     d.setDate(d.getDate() + i + 1)
-    // skip weekends
     while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1)
     return {
       label: d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
@@ -70,17 +68,16 @@ function buildForecast(prices: number[], usdVND: number, lastDate: Date): Foreca
 
 async function buildGoldData(usdVND: number): Promise<{
   chartData: GoldDataPoint[]
+  history: { date: string; actual: number; predicted: number | null }[]
   forecast: ForecastDay[]
   lastXAU: number
   slope: number
-  lastDate: Date
 }> {
   const { timestamps, closes } = await fetchRawGold()
   const valid = timestamps.map((ts, i) => ({ ts, xau: closes[i] })).filter(d => d.xau != null)
   const prices = valid.map(d => d.xau)
   const { slope } = linReg(prices.slice(-10))
 
-  // predicted using MA5 + half-trend
   const predicted = prices.map((_, i) => {
     if (i < 4) return null
     const w = prices.slice(i - 4, i + 1)
@@ -95,16 +92,17 @@ async function buildGoldData(usdVND: number): Promise<{
     predicted: predicted[i],
   }))
 
+  const history = [...chartData].reverse().slice(0, 10)
   const lastDate = new Date(valid[valid.length - 1].ts * 1000)
   const forecast = buildForecast(prices, usdVND, lastDate)
 
-  return { chartData, forecast, lastXAU: prices[prices.length - 1], slope, lastDate }
+  return { chartData, history, forecast, lastXAU: prices[prices.length - 1], slope }
 }
 
 async function fetchGoldInsights() {
   const { data } = await supabase
     .from('reports')
-    .select('report_date, watch_list, predictions, top_events')
+    .select('report_date, watch_list, predictions')
     .order('report_date', { ascending: false })
     .limit(1)
     .single()
@@ -112,19 +110,16 @@ async function fetchGoldInsights() {
 
   type WatchItem = { item: string; reason: string; trigger?: string }
   type Forecast = { sector: string; prediction: string; confidence: string }
-  type Event = { rank: number; title: string; summary: string }
   const watchList: WatchItem[] = data.watch_list ?? []
   const forecasts: Forecast[] = data.predictions?.forecasts ?? []
-  const topEvents: Event[] = data.top_events ?? []
 
   const keywords = ['vàng', 'gold', 'xau', 'usd', 'fed', 'tỷ giá', 'kim loại', 'lạm phát']
-  const isGoldRelated = (s: string) => keywords.some(k => s.toLowerCase().includes(k))
+  const isGold = (s: string) => keywords.some(k => s.toLowerCase().includes(k))
 
   return {
     date: data.report_date,
-    watches: watchList.filter(w => isGoldRelated(w.item + w.reason)),
-    forecasts: forecasts.filter(f => isGoldRelated(f.sector + f.prediction)),
-    events: topEvents.filter(e => isGoldRelated(e.title + e.summary)).slice(0, 3),
+    watches: watchList.filter(w => isGold(w.item + w.reason)),
+    forecasts: forecasts.filter(f => isGold(f.sector + f.prediction)),
   }
 }
 
@@ -138,12 +133,15 @@ async function fetchGoldArticles(): Promise<Article[]> {
 
 function timeAgo(d: string) {
   const h = Math.floor((Date.now() - new Date(d).getTime()) / 3_600_000)
-  if (h < 1) return 'Vừa xong'; if (h < 24) return `${h}h trước`; return `${Math.floor(h / 24)}d trước`
+  if (h < 1) return 'Vừa xong'
+  if (h < 24) return `${h}h trước`
+  return `${Math.floor(h / 24)}d trước`
 }
-function excerpt(t: string, max = 160) {
-  const c = t.replace(/\s+/g, ' ').trim(); return c.length <= max ? c : c.slice(0, max) + '…'
+function excerpt(t: string, max = 140) {
+  const c = t.replace(/\s+/g, ' ').trim()
+  return c.length <= max ? c : c.slice(0, max) + '…'
 }
-function fmt(n: number) { return (n / 1_000_000).toFixed(2) + ' triệu ₫' }
+function fmtM(n: number) { return (n / 1_000_000).toFixed(2) }
 
 // --- Page ---
 
@@ -153,173 +151,242 @@ export default async function VangPage() {
     fetchGoldInsights(),
     fetchGoldArticles(),
   ])
-  const { chartData, forecast, lastXAU, slope, lastDate } = await buildGoldData(usdVND)
+  const { chartData, history, forecast, lastXAU, slope } = await buildGoldData(usdVND)
 
   const latestSJC = chartData[chartData.length - 1]?.actual ?? 0
-  const trendDir = slope > 5 ? 'tăng' : slope < -5 ? 'giảm' : 'đi ngang'
+  const prevSJC   = chartData[chartData.length - 2]?.actual ?? latestSJC
+  const change    = latestSJC - prevSJC
+  const changePct = prevSJC ? ((change / prevSJC) * 100).toFixed(2) : '0'
+  const trendDir  = slope > 5 ? 'tăng' : slope < -5 ? 'giảm' : 'đi ngang'
   const trendStrong = Math.abs(slope) > 15
 
-  // Build prediction article content
   const insightFactors = [
     ...(insights?.watches ?? []).map(w => w.item),
     ...(insights?.forecasts ?? []).map(f => f.sector),
-  ].slice(0, 4)
+  ].slice(0, 3)
 
   return (
     <div>
-      <div className="text-xs text-gray-400 mb-4 flex items-center gap-1.5">
+      {/* Breadcrumb */}
+      <div className="text-xs text-gray-400 mb-5 flex items-center gap-1.5">
         <Link href="/" className="hover:text-blue-700">Trang chủ</Link>
         <span>/</span>
         <span className="text-gray-600">Vàng</span>
       </div>
 
-      {/* Chart & table */}
-      <section className="mb-10">
-        <div className="border-b-2 border-gray-900 pb-2 mb-6">
-          <h1 className="font-black text-sm uppercase tracking-widest text-gray-900">Giá vàng SJC — Việt Nam</h1>
+      {/* ── Hero price header ── */}
+      <div className="border-b-2 border-gray-900 pb-4 mb-6">
+        <h1 className="font-black text-xs uppercase tracking-widest text-gray-400 mb-2">
+          Giá vàng SJC — Việt Nam
+        </h1>
+        <div className="flex flex-wrap items-baseline gap-4">
+          <span className="text-4xl font-black text-gray-900">
+            {fmtM(latestSJC)} triệu ₫
+          </span>
+          <span className={`text-base font-semibold ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {change >= 0 ? '▲' : '▼'} {Math.abs(change / 1_000_000).toFixed(2)} tr ({change >= 0 ? '+' : ''}{changePct}%)
+          </span>
+          <span className="text-sm text-gray-400">mỗi lượng (37,5g)</span>
         </div>
-        {chartData.length > 0
-          ? <GoldPriceWidget data={chartData} />
-          : <p className="text-gray-400 text-sm">Không thể tải dữ liệu.</p>
-        }
-      </section>
-
-      {/* 5-day prediction article */}
-      <section className="mb-10">
-        <div className="border-b-2 border-gray-900 pb-2 mb-6">
-          <h2 className="font-black text-sm uppercase tracking-widest text-gray-900">
-            Dự báo giá vàng SJC 5 ngày tới
-          </h2>
+        <div className="flex gap-6 mt-3 text-xs text-gray-500">
+          <span>XAU/USD <strong className="text-gray-800">${lastXAU.toFixed(0)}</strong></span>
+          <span>USD/VND <strong className="text-gray-800">{usdVND.toLocaleString('vi-VN')}</strong></span>
+          <span>Xu hướng <strong className={trendStrong ? (slope > 0 ? 'text-green-700' : 'text-red-700') : 'text-gray-700'}>
+            {trendDir}{trendStrong ? ' mạnh' : ''}
+          </strong></span>
         </div>
+      </div>
 
-        {/* Lead */}
-        <div className="bg-indigo-50 border-l-4 border-indigo-600 px-4 py-3 rounded-r mb-6">
-          <p className="text-gray-800 leading-relaxed text-sm">
-            Dựa trên diễn biến giá vàng quốc tế (XAU/USD hiện tại ~${lastXAU.toFixed(0)}/oz),
-            tỷ giá USD/VND (~{usdVND.toLocaleString('vi-VN')} đồng) và xu hướng{' '}
-            <strong>{trendDir}{trendStrong ? ' mạnh' : ''}</strong> trong 10 phiên gần đây,
-            mô hình dự báo giá vàng SJC cho 5 ngày tới như sau:
-          </p>
-        </div>
+      {/* ── 2-column layout ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
 
-        {/* Forecast table */}
-        <div className="overflow-x-auto mb-6">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b-2 border-gray-900">
-                <th className="text-left py-2 text-xs font-black uppercase tracking-widest text-gray-500">Ngày</th>
-                <th className="text-right py-2 text-xs font-black uppercase tracking-widest text-indigo-600">Giá dự báo (SJC)</th>
-                <th className="text-right py-2 text-xs font-black uppercase tracking-widest text-gray-400">So hôm nay</th>
-                <th className="text-right py-2 text-xs font-black uppercase tracking-widest text-gray-400">Xu hướng</th>
-              </tr>
-            </thead>
-            <tbody>
-              {forecast.map((f, i) => {
-                const vsToday = f.price - latestSJC
-                return (
-                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2.5 font-medium text-gray-700">{f.label}</td>
-                    <td className="py-2.5 text-right font-bold text-gray-900">{fmt(f.price)}</td>
-                    <td className={`py-2.5 text-right text-xs font-semibold ${vsToday >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {vsToday >= 0 ? '+' : ''}{(vsToday / 1_000_000).toFixed(2)} tr
-                    </td>
-                    <td className="py-2.5 text-right text-lg">
-                      {f.change > 200_000 ? '▲' : f.change < -200_000 ? '▼' : '→'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        {/* LEFT — chart + history + news */}
+        <div className="lg:col-span-3 space-y-8">
 
-        {/* Why section */}
-        <div>
-          <h3 className="font-black text-xs uppercase tracking-widest text-gray-500 mb-4">
-            Tại sao lại dự báo như vậy?
-          </h3>
+          {/* Chart */}
+          <section>
+            <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
+              Biểu đồ 30 ngày
+            </p>
+            {chartData.length > 0
+              ? <GoldPriceWidget data={chartData} />
+              : <p className="text-gray-400 text-sm">Không thể tải dữ liệu biểu đồ.</p>
+            }
+            <p className="text-xs text-gray-400 mt-2">
+              Nguồn: Yahoo Finance (GC=F, USDVND=X) · Cập nhật mỗi giờ
+            </p>
+          </section>
 
-          <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
-            <div className="border-b border-gray-100 pb-4">
-              <span className="font-bold text-gray-900 block mb-1">1. Xu hướng kỹ thuật ({trendDir})</span>
-              Hồi quy tuyến tính 10 phiên gần nhất cho thấy giá SJC đang{' '}
-              <strong>{trendDir}</strong> với tốc độ{' '}
-              ~{Math.abs((slope * LUONG_PER_OZ * usdVND) / 1_000_000).toFixed(2)} triệu/phiên.
-              Dự báo giả định xu hướng này duy trì ở mức 50%.
+          {/* 10-day history */}
+          <section>
+            <div className="border-b-2 border-gray-900 pb-2 mb-4">
+              <p className="font-black text-xs uppercase tracking-widest text-gray-900">Lịch sử 10 phiên gần nhất</p>
             </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-1.5 text-xs text-gray-400 font-semibold">Ngày</th>
+                  <th className="text-right py-1.5 text-xs text-amber-600 font-semibold">Giá SJC (triệu ₫)</th>
+                  <th className="text-right py-1.5 text-xs text-indigo-500 font-semibold">AI Dự báo</th>
+                  <th className="text-right py-1.5 text-xs text-gray-400 font-semibold">±</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((row, i, arr) => {
+                  const prev = arr[i + 1]
+                  const chg = prev ? (row.actual - prev.actual) / 1_000_000 : 0
+                  return (
+                    <tr key={row.date} className={`border-b border-gray-50 ${i === 0 ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
+                      <td className={`py-2 text-xs ${i === 0 ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
+                        {row.date}{i === 0 && <span className="ml-1.5 text-amber-600 text-[10px]">Mới nhất</span>}
+                      </td>
+                      <td className={`py-2 text-right font-semibold ${i === 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                        {fmtM(row.actual)}
+                      </td>
+                      <td className="py-2 text-right text-xs text-indigo-500">
+                        {row.predicted ? fmtM(row.predicted) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className={`py-2 text-right text-xs font-medium ${chg > 0 ? 'text-green-600' : chg < 0 ? 'text-red-500' : 'text-gray-300'}`}>
+                        {chg !== 0 ? `${chg > 0 ? '+' : ''}${chg.toFixed(2)}` : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </section>
 
-            <div className="border-b border-gray-100 pb-4">
-              <span className="font-bold text-gray-900 block mb-1">2. Tỷ giá USD/VND</span>
-              USD/VND hiện ở mức ~{usdVND.toLocaleString('vi-VN')} đồng.
-              Mỗi biến động 100 đồng sẽ tác động ~
-              {(lastXAU * LUONG_PER_OZ * 100 / 1_000_000).toFixed(1)} triệu/lượng đến giá SJC.
+          {/* News */}
+          <section>
+            <div className="border-b-2 border-gray-900 pb-2 mb-4 flex items-baseline justify-between">
+              <p className="font-black text-xs uppercase tracking-widest text-gray-900">Tin tức vàng hôm nay</p>
+              <span className="text-xs text-gray-400">{articles.length} bài</span>
             </div>
-
-            {insightFactors.length > 0 && (
-              <div className="border-b border-gray-100 pb-4">
-                <span className="font-bold text-gray-900 block mb-1">3. Yếu tố vĩ mô (AI phân tích)</span>
-                Báo cáo AI ngày {insights?.date} nhận định các yếu tố sau đang tác động:{' '}
-                <span className="italic">{insightFactors.join('; ')}</span>.
+            {articles.length === 0 ? (
+              <p className="text-gray-400 text-sm py-4">Không có bài viết nào trong 24 giờ qua.</p>
+            ) : (
+              <div className="space-y-4">
+                {articles.map(a => (
+                  <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer"
+                    className="block group border-b border-gray-100 pb-4 last:border-0">
+                    <p className="text-xs text-gray-400 mb-1">{a.source} · {timeAgo(a.published_at || a.collected_at)}</p>
+                    <p className="font-bold text-gray-900 group-hover:text-blue-700 leading-snug text-sm">{a.title}</p>
+                    {a.content && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{excerpt(a.content)}</p>}
+                  </a>
+                ))}
               </div>
             )}
-
-            <div>
-              <span className="font-bold text-gray-900 block mb-1">4. Phụ trội SJC</span>
-              Giá SJC Việt Nam thường cao hơn giá quốc tế quy đổi do phụ trội thương hiệu và
-              chính sách quản lý. Mô hình ước tính phụ trội cố định ~10 triệu/lượng.
-            </div>
-          </div>
-
-          <p className="text-xs text-gray-400 mt-4 italic">
-            Lưu ý: Đây là dự báo kỹ thuật dựa trên xu hướng, không phải khuyến nghị đầu tư.
-            Giá vàng chịu ảnh hưởng bởi nhiều yếu tố không thể dự báo hoàn toàn.
-          </p>
+          </section>
         </div>
-      </section>
 
-      {/* AI watch insights */}
-      {insights && insights.watches.length > 0 && (
-        <section className="mb-10">
-          <div className="border-b-2 border-gray-900 pb-2 mb-5">
-            <h2 className="font-black text-sm uppercase tracking-widest text-gray-900">
-              AI Theo dõi — {insights.date}
-            </h2>
-          </div>
-          {insights.watches.map((w, i) => (
-            <div key={i} className="bg-amber-50 border border-amber-200 rounded p-4 mb-4">
-              <p className="font-bold text-gray-900 mb-1.5">{w.item}</p>
-              <p className="text-sm text-gray-700 leading-relaxed">{w.reason}</p>
-              {w.trigger && (
-                <p className="text-xs text-amber-700 mt-2">
-                  <span className="font-semibold">Tín hiệu:</span> {w.trigger}
-                </p>
+        {/* RIGHT — forecast + reasoning + AI insights */}
+        <div className="lg:col-span-2 space-y-7">
+
+          {/* Forecast table */}
+          <section>
+            <div className="border-b-2 border-gray-900 pb-2 mb-4">
+              <p className="font-black text-xs uppercase tracking-widest text-gray-900">Dự báo 5 ngày tới</p>
+            </div>
+
+            {/* Lead */}
+            <div className="bg-indigo-50 border-l-4 border-indigo-500 px-3 py-2.5 rounded-r mb-4">
+              <p className="text-xs text-gray-700 leading-relaxed">
+                Mô hình hồi quy tuyến tính 10 phiên, xu hướng{' '}
+                <strong>{trendDir}{trendStrong ? ' mạnh' : ''}</strong>.
+                Tốc độ ~{Math.abs((slope * LUONG_PER_OZ * usdVND) / 1_000_000).toFixed(2)} triệu/phiên.
+              </p>
+            </div>
+
+            <table className="w-full text-sm mb-2">
+              <thead>
+                <tr className="border-b-2 border-gray-900">
+                  <th className="text-left py-1.5 text-xs text-gray-400 font-semibold">Ngày</th>
+                  <th className="text-right py-1.5 text-xs text-indigo-600 font-semibold">Dự báo SJC</th>
+                  <th className="text-right py-1.5 text-xs text-gray-400 font-semibold">So hôm nay</th>
+                  <th className="text-center py-1.5 text-xs text-gray-400 font-semibold">Hướng</th>
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.map((f, i) => {
+                  const vsToday = f.price - latestSJC
+                  return (
+                    <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 text-xs font-medium text-gray-700">{f.label}</td>
+                      <td className="py-2 text-right font-bold text-gray-900 text-xs">{fmtM(f.price)} tr</td>
+                      <td className={`py-2 text-right text-xs font-semibold ${vsToday >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        {vsToday >= 0 ? '+' : ''}{(vsToday / 1_000_000).toFixed(2)}
+                      </td>
+                      <td className="py-2 text-center text-sm">
+                        {f.change > 200_000 ? <span className="text-green-600">▲</span>
+                          : f.change < -200_000 ? <span className="text-red-500">▼</span>
+                          : <span className="text-gray-400">→</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="text-xs text-gray-400 italic">Không phải khuyến nghị đầu tư.</p>
+          </section>
+
+          {/* Why section */}
+          <section>
+            <div className="border-b-2 border-gray-900 pb-2 mb-4">
+              <p className="font-black text-xs uppercase tracking-widest text-gray-900">Tại sao dự báo vậy?</p>
+            </div>
+
+            <div className="space-y-3 text-xs text-gray-700 leading-relaxed">
+              <div className="border-b border-gray-100 pb-3">
+                <span className="font-bold text-gray-900 block mb-0.5">Xu hướng kỹ thuật</span>
+                Giá SJC đang <strong>{trendDir}</strong> ~{Math.abs((slope * LUONG_PER_OZ * usdVND) / 1_000_000).toFixed(2)} tr/phiên (hồi quy 10 ngày).
+                Dự báo giả định xu hướng duy trì 50%.
+              </div>
+
+              <div className="border-b border-gray-100 pb-3">
+                <span className="font-bold text-gray-900 block mb-0.5">Tỷ giá USD/VND</span>
+                Hiện ~{usdVND.toLocaleString('vi-VN')} ₫.
+                Mỗi ±100 ₫ = ±{(lastXAU * LUONG_PER_OZ * 100 / 1_000_000).toFixed(1)} triệu/lượng.
+              </div>
+
+              {insightFactors.length > 0 && (
+                <div className="border-b border-gray-100 pb-3">
+                  <span className="font-bold text-gray-900 block mb-0.5">Yếu tố vĩ mô (AI)</span>
+                  <span className="italic">{insightFactors.join('; ')}</span>
+                </div>
               )}
-            </div>
-          ))}
-        </section>
-      )}
 
-      {/* News articles */}
-      <section>
-        <div className="border-b-2 border-gray-900 pb-2 mb-5 flex items-baseline justify-between">
-          <h2 className="font-black text-sm uppercase tracking-widest text-gray-900">Tin tức vàng hôm nay</h2>
-          <span className="text-xs text-gray-400">{articles.length} bài</span>
+              <div>
+                <span className="font-bold text-gray-900 block mb-0.5">Phụ trội SJC</span>
+                Phụ trội thương hiệu ~10 triệu/lượng so với giá quốc tế quy đổi.
+              </div>
+            </div>
+          </section>
+
+          {/* AI watch */}
+          {insights && insights.watches.length > 0 && (
+            <section>
+              <div className="border-b-2 border-gray-900 pb-2 mb-4">
+                <p className="font-black text-xs uppercase tracking-widest text-gray-900">
+                  AI Theo dõi · {insights.date}
+                </p>
+              </div>
+              <div className="space-y-3">
+                {insights.watches.map((w, i) => (
+                  <div key={i} className="bg-amber-50 border border-amber-200 rounded p-3">
+                    <p className="font-bold text-gray-900 text-xs mb-1">{w.item}</p>
+                    <p className="text-xs text-gray-600 leading-relaxed">{w.reason}</p>
+                    {w.trigger && (
+                      <p className="text-xs text-amber-700 mt-1.5">
+                        <span className="font-semibold">Tín hiệu:</span> {w.trigger}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
-        {articles.length === 0 ? (
-          <p className="text-gray-400 text-sm py-4">Không có bài viết nào trong 24 giờ qua.</p>
-        ) : (
-          <div className="space-y-5">
-            {articles.map(a => (
-              <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer"
-                className="block group border-b border-gray-100 pb-5 last:border-0">
-                <p className="text-xs text-gray-400 mb-1">{a.source} · {timeAgo(a.published_at || a.collected_at)}</p>
-                <p className="font-bold text-gray-900 group-hover:text-blue-700 leading-snug">{a.title}</p>
-                {a.content && <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">{excerpt(a.content)}</p>}
-              </a>
-            ))}
-          </div>
-        )}
-      </section>
+      </div>
     </div>
   )
 }
