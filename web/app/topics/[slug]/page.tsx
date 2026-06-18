@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { supabase, type Article } from '@/lib/supabase'
 import { categorizeArticle, getTopicBySlug, type TopicSlug } from '@/lib/topics'
 
-const HANOI_KEYWORDS = ['hà nội', 'hanoi', 'thủ đô']
+const HANOI_KEYWORDS = ['hà nội', 'hanoi', 'thủ đô', 'hanoï']
 
 function isHanoi(a: Article) {
   const s = (a.title + ' ' + (a.content ?? '')).toLowerCase()
@@ -19,7 +19,9 @@ async function getArticles(slug: TopicSlug): Promise<Article[]> {
     .gte('collected_at', since)
     .order('published_at', { ascending: false })
     .limit(300)
-  return (data ?? []).filter(a => categorizeArticle(a.title, a.source) === slug)
+  const all = (data ?? []).filter(a => categorizeArticle(a.title, a.source) === slug)
+  // BDS: only Hà Nội articles
+  return slug === 'bat-dong-san' ? all.filter(isHanoi) : all
 }
 
 type TopEvent = {
@@ -30,10 +32,9 @@ type TopEvent = {
   sources?: string[]
 }
 
-// Topic → keywords used to filter AI top_events
 const TOPIC_KEYWORDS: Record<string, string[]> = {
-  'kinh-te':  ['kinh tế', 'doanh nghiệp', 'tài chính', 'gdp', 'đầu tư', 'thị trường', 'ngân hàng', 'lãi suất', 'xuất khẩu', 'nhập khẩu', 'cổ phiếu', 'vnindex', 'nội địa', 'việt nam', 'hà nội', 'tp hcm', 'doanh thu', 'lợi nhuận'],
-  'cong-nghe': ['công nghệ', 'ai', 'trí tuệ nhân tạo', 'startup', 'tech', 'phần mềm', 'chip', 'bán dẫn', 'robot', 'tự động hóa', 'blockchain', 'digital', 'số hóa', 'khoa học', 'nghiên cứu'],
+  'bat-dong-san': ['bất động sản', 'nhà đất', 'căn hộ', 'chung cư', 'đất nền', 'dự án', 'hà nội', 'giá nhà', 'khu đô thị', 'quy hoạch'],
+  'cong-nghe':    ['công nghệ', 'ai', 'trí tuệ nhân tạo', 'startup', 'tech', 'phần mềm', 'chip', 'bán dẫn', 'robot', 'khoa học', 'nghiên cứu'],
 }
 
 async function getTopEvents(slug: string): Promise<{ events: TopEvent[]; date: string } | null> {
@@ -46,7 +47,9 @@ async function getTopEvents(slug: string): Promise<{ events: TopEvent[]; date: s
   if (!data?.top_events) return null
 
   const keywords = TOPIC_KEYWORDS[slug] ?? []
-  const filtered: TopEvent[] = (data.top_events as TopEvent[]).filter(ev => {
+  if (keywords.length === 0) return null
+
+  const filtered = (data.top_events as TopEvent[]).filter(ev => {
     const text = (ev.title + ' ' + (ev.summary ?? '') + ' ' + (ev.why_matters ?? '')).toLowerCase()
     return keywords.some(k => text.includes(k))
   })
@@ -77,10 +80,7 @@ function EventHighlights({ events, date, reportDate }: {
         <h2 className="font-black text-xs uppercase tracking-widest text-gray-900">
           AI Chọn lọc · {date}
         </h2>
-        <Link
-          href={`/reports/${reportDate}`}
-          className="text-xs text-blue-600 hover:underline"
-        >
+        <Link href={`/reports/${reportDate}`} className="text-xs text-blue-600 hover:underline">
           Xem báo cáo đầy đủ →
         </Link>
       </div>
@@ -101,9 +101,7 @@ function EventHighlights({ events, date, reportDate }: {
                   {ev.summary}
                 </p>
                 {ev.sources && ev.sources.length > 0 && (
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    {ev.sources.slice(0, 3).join(' · ')}
-                  </p>
+                  <p className="text-xs text-gray-400 mt-1.5">{ev.sources.slice(0, 3).join(' · ')}</p>
                 )}
               </div>
             </div>
@@ -114,22 +112,16 @@ function EventHighlights({ events, date, reportDate }: {
   )
 }
 
-function CompactArticleList({ articles, label, count }: {
-  articles: Article[]
-  label?: string
-  count: number
-}) {
+function CompactArticleList({ articles, count }: { articles: Article[]; count: number }) {
   const top5 = articles.slice(0, 5)
   const rest  = articles.length - 5
 
+  if (top5.length === 0) return (
+    <p className="text-gray-400 text-sm py-4">Không có bài viết nào trong 24 giờ qua.</p>
+  )
+
   return (
-    <section className="mb-7">
-      {label && (
-        <div className="flex items-baseline justify-between border-b border-gray-200 pb-2 mb-4">
-          <h3 className="font-black text-xs uppercase tracking-widest text-red-700">{label}</h3>
-          <span className="text-xs text-gray-400">{count} bài hôm nay</span>
-        </div>
-      )}
+    <>
       <div className="divide-y divide-gray-100">
         {top5.map(a => (
           <a
@@ -154,7 +146,7 @@ function CompactArticleList({ articles, label, count }: {
       {rest > 0 && (
         <p className="text-xs text-gray-400 mt-3 pl-7">+{rest} bài khác không hiển thị</p>
       )}
-    </section>
+    </>
   )
 }
 
@@ -169,10 +161,6 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
     getArticles(slug as TopicSlug),
     getTopEvents(slug),
   ])
-
-  const isKinhTe = slug === 'kinh-te'
-  const hanoiArticles = isKinhTe ? articles.filter(isHanoi) : []
-  const otherArticles = isKinhTe ? articles.filter(a => !isHanoi(a)) : articles
 
   return (
     <div>
@@ -198,38 +186,11 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
         />
       )}
 
-      {/* Article lists */}
-      {articles.length === 0 ? (
-        <p className="text-gray-400 text-sm py-8 text-center">Không có bài viết nào trong 24 giờ qua.</p>
-      ) : isKinhTe ? (
-        <>
-          {/* Header for news section */}
-          <div className="border-b-2 border-gray-900 pb-2 mb-5">
-            <h2 className="font-black text-xs uppercase tracking-widest text-gray-900">Tin mới nhất</h2>
-          </div>
-          {hanoiArticles.length > 0 && (
-            <CompactArticleList
-              articles={hanoiArticles}
-              label="Hà Nội"
-              count={hanoiArticles.length}
-            />
-          )}
-          {otherArticles.length > 0 && (
-            <CompactArticleList
-              articles={otherArticles}
-              label={hanoiArticles.length > 0 ? 'Toàn quốc' : undefined}
-              count={otherArticles.length}
-            />
-          )}
-        </>
-      ) : (
-        <>
-          <div className="border-b-2 border-gray-900 pb-2 mb-5">
-            <h2 className="font-black text-xs uppercase tracking-widest text-gray-900">Tin mới nhất</h2>
-          </div>
-          <CompactArticleList articles={otherArticles} count={otherArticles.length} />
-        </>
-      )}
+      {/* Latest articles */}
+      <div className="border-b-2 border-gray-900 pb-2 mb-5">
+        <h2 className="font-black text-xs uppercase tracking-widest text-gray-900">Tin mới nhất</h2>
+      </div>
+      <CompactArticleList articles={articles} count={articles.length} />
     </div>
   )
 }

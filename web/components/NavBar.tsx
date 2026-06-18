@@ -12,8 +12,8 @@ const NAV = [
     exact: true,
   },
   {
-    href: '/topics/kinh-te',
-    label: 'Kinh tế',
+    href: '/topics/bat-dong-san',
+    label: 'Bất động sản',
     active: 'text-green-700 border-b-2 border-green-700',
     inactive: 'text-gray-600 hover:text-green-700 hover:border-b-2 hover:border-green-700',
     exact: false,

@@ -1,4 +1,4 @@
-export type TopicSlug = 'ai' | 'kinh-te' | 'vang' | 'cong-nghe'
+export type TopicSlug = 'ai' | 'bat-dong-san' | 'vang' | 'cong-nghe'
 
 export type Topic = {
   slug: TopicSlug
@@ -20,6 +20,17 @@ export const TOPICS: Topic[] = [
     ],
   },
   {
+    slug: 'bat-dong-san',
+    name: 'Bất động sản Hà Nội',
+    description: 'Thị trường bất động sản tại Hà Nội',
+    keywords: [
+      'bất động sản', 'nhà đất', 'căn hộ', 'chung cư', 'đất nền', 'dự án',
+      'hà nội', 'thị trường nhà', 'giá nhà', 'môi giới', 'sàn bất động sản',
+      'phân khúc', 'shophouse', 'penthouse', 'liền kề', 'biệt thự',
+      'khu đô thị', 'quy hoạch', 'vinhomes', 'gamuda', 'masteri', 'ecopark',
+    ],
+  },
+  {
     slug: 'vang',
     name: 'Vàng',
     description: 'Giá vàng, kim loại quý',
@@ -36,21 +47,14 @@ export const TOPICS: Topic[] = [
       'apple', 'google', 'meta', 'amazon', 'tiktok', 'mạng xã hội',
     ],
   },
-  {
-    slug: 'kinh-te',
-    name: 'Kinh tế Việt Nam',
-    description: 'Kinh doanh, tài chính, thị trường',
-    keywords: [],
-  },
 ]
 
 export function categorizeArticle(title: string, source: string): TopicSlug {
   const lower = (title + ' ' + source).toLowerCase()
   for (const topic of TOPICS) {
-    if (topic.keywords.length === 0) continue
     if (topic.keywords.some((kw) => lower.includes(kw))) return topic.slug
   }
-  return 'kinh-te'
+  return 'cong-nghe'
 }
 
 export function getTopicBySlug(slug: string): Topic | undefined {

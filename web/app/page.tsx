@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { supabase, type Article, type Report } from '@/lib/supabase'
-import { TOPICS, categorizeArticle } from '@/lib/topics'
+import { categorizeArticle } from '@/lib/topics'
 
 type TopEvent = {
   rank: number
@@ -44,9 +44,10 @@ export default async function HomePage() {
 
   const topEvents: TopEvent[] = Array.isArray(report?.top_events) ? (report.top_events as TopEvent[]) : []
 
-  const grouped: Record<string, Article[]> = { ai: [], 'kinh-te': [], vang: [], 'cong-nghe': [] }
+  const grouped: Record<string, Article[]> = { ai: [], 'bat-dong-san': [], vang: [], 'cong-nghe': [] }
   for (const a of articles) {
-    grouped[categorizeArticle(a.title, a.source)].push(a)
+    const slug = categorizeArticle(a.title, a.source)
+    if (grouped[slug]) grouped[slug].push(a)
   }
 
   return (
@@ -88,7 +89,7 @@ export default async function HomePage() {
 
       {/* Sidebar */}
       <aside className="space-y-8">
-        <TopicSection slug="kinh-te" name="Kinh tế Việt Nam" articles={grouped['kinh-te']} limit={5} compact />
+        <TopicSection slug="bat-dong-san" name="Bất động sản HN" articles={grouped['bat-dong-san']} limit={5} compact />
         <TopicSection slug="vang" name="Vàng" articles={grouped['vang']} limit={4} compact />
         <TopicSection slug="cong-nghe" name="Khoa học & Công nghệ" articles={grouped['cong-nghe']} limit={4} compact />
       </aside>
