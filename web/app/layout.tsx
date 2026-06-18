@@ -8,22 +8,12 @@ export const metadata: Metadata = {
 }
 
 const NAV = [
-  { href: '/', label: null, color: 'hover:text-gray-900' },
+  { href: '/', label: 'Trang chủ', color: 'hover:text-gray-900' },
   { href: '/topics/kinh-te', label: 'Kinh tế', color: 'hover:text-green-700 hover:border-b-2 hover:border-green-700' },
-  { href: '/topics/ai', label: 'Trí tuệ nhân tạo', color: 'hover:text-violet-700 hover:border-b-2 hover:border-violet-700' },
   { href: '/topics/vang', label: 'Vàng', color: 'hover:text-amber-600 hover:border-b-2 hover:border-amber-600' },
   { href: '/topics/cong-nghe', label: 'Khoa học & Công nghệ', color: 'hover:text-cyan-700 hover:border-b-2 hover:border-cyan-700' },
   { href: '/reports', label: 'Báo cáo AI', color: 'hover:text-red-600 hover:border-b-2 hover:border-red-600' },
 ]
-
-function HomeIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M3 12L12 3L21 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M5 10V20C5 20.55 5.45 21 6 21H10V15H14V21H18C18.55 21 19 20.55 19 20V10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
 
 function BarChartIcon() {
   return (
@@ -70,9 +60,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <li key={item.href}>
                     <a
                       href={item.href}
-                      className={`flex items-center px-5 py-3 font-semibold text-lg text-gray-600 transition-colors ${item.color}`}
+                      className={`flex items-center px-5 py-3 font-semibold text-xl text-gray-600 transition-colors ${item.color}`}
                     >
-                      {item.label === null ? <HomeIcon /> : item.label}
+                      {item.label}
                     </a>
                   </li>
                 ))}

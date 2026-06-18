@@ -59,12 +59,16 @@ export default async function HomePage() {
           <section>
             <SectionHeader title="Bản tin phân tích" date={report?.report_date} href="/reports" />
             <div className="space-y-5">
-              {topEvents.slice(0, 5).map((ev) => (
-                <div key={ev.rank} className="border-b border-gray-100 pb-5 last:border-0">
+              {topEvents.map((ev) => (
+                <Link
+                  key={ev.rank}
+                  href={`/reports/${report!.report_date}/events/${ev.rank}`}
+                  className="block group border-b border-gray-100 pb-5 last:border-0 hover:bg-gray-50 -mx-2 px-2 py-1 rounded transition-colors"
+                >
                   <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">
                     Sự kiện {ev.rank}
                   </span>
-                  <h3 className="font-bold text-gray-900 mt-1 leading-snug text-base">
+                  <h3 className="font-bold text-gray-900 group-hover:text-blue-700 mt-1 leading-snug text-base">
                     {ev.title}
                   </h3>
                   <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">{ev.summary}</p>
@@ -73,33 +77,19 @@ export default async function HomePage() {
                       Nguồn: {ev.sources.join(' · ')}
                     </p>
                   )}
-                </div>
-              ))}
-              {topEvents.length > 5 && (
-                <Link href="/reports" className="text-sm text-blue-700 hover:underline block pt-1">
-                  Xem thêm {topEvents.length - 5} sự kiện trong báo cáo đầy đủ →
+                  <span className="text-xs text-blue-600 mt-1.5 block">Đọc đầy đủ →</span>
                 </Link>
-              )}
+              ))}
             </div>
           </section>
         )}
 
-        {/* Kinh tế VN — biggest topic */}
-        <TopicSection
-          slug="kinh-te"
-          name="Kinh tế Việt Nam"
-          articles={grouped['kinh-te']}
-          limit={5}
-        />
       </div>
 
       {/* Sidebar */}
       <aside className="space-y-8">
-        {/* AI */}
-        <TopicSection slug="ai" name="Trí tuệ nhân tạo" articles={grouped['ai']} limit={4} compact />
-        {/* Vàng */}
+        <TopicSection slug="kinh-te" name="Kinh tế Việt Nam" articles={grouped['kinh-te']} limit={5} compact />
         <TopicSection slug="vang" name="Vàng" articles={grouped['vang']} limit={4} compact />
-        {/* Công nghệ */}
         <TopicSection slug="cong-nghe" name="Khoa học & Công nghệ" articles={grouped['cong-nghe']} limit={4} compact />
       </aside>
     </div>
