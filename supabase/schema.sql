@@ -47,6 +47,10 @@ CREATE POLICY "Public read reports"
   ON reports FOR SELECT
   USING (true);
 
+CREATE POLICY "anon can read articles"
+  ON articles FOR SELECT TO anon
+  USING (true);
+
 -- Pipeline dùng service_role key (bypass RLS) để INSERT/DELETE
 -- Không cần policy riêng cho service_role
 
