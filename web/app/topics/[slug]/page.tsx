@@ -1,7 +1,16 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { supabase, type Article } from '@/lib/supabase'
-import { TOPICS, categorizeArticle, getTopicBySlug } from '@/lib/topics'
+import { categorizeArticle, getTopicBySlug } from '@/lib/topics'
+
+const HANOI_KEYWORDS = [
+  'hà nội', 'hanoi', 'thủ đô', 'hanoï',
+]
+
+function isHanoi(article: Article) {
+  const lower = (article.title + ' ' + (article.content ?? '')).toLowerCase()
+  return HANOI_KEYWORDS.some((kw) => lower.includes(kw))
+}
 
 async function getArticles(): Promise<Article[]> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -28,6 +37,33 @@ function excerpt(text: string, max = 180) {
   return clean.length <= max ? clean : clean.slice(0, max).trimEnd() + '…'
 }
 
+function ArticleList({ articles }: { articles: Article[] }) {
+  if (articles.length === 0) return null
+  return (
+    <div className="space-y-5">
+      {articles.map((a) => (
+        <a
+          key={a.id}
+          href={a.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block group border-b border-gray-100 pb-5 last:border-0"
+        >
+          <p className="text-xs text-gray-400 mb-1">
+            {a.source} · {timeAgo(a.published_at || a.collected_at)}
+          </p>
+          <p className="font-bold text-gray-900 group-hover:text-blue-700 leading-snug text-base">
+            {a.title}
+          </p>
+          {a.content && (
+            <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">{excerpt(a.content)}</p>
+          )}
+        </a>
+      ))}
+    </div>
+  )
+}
+
 export default async function TopicPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const topic = getTopicBySlug(slug)
@@ -36,12 +72,16 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const all = await getArticles()
   const articles = all.filter((a) => categorizeArticle(a.title, a.source) === slug)
 
+  const isKinhTe = slug === 'kinh-te'
+  const hanoiArticles = isKinhTe ? articles.filter(isHanoi) : []
+  const otherArticles = isKinhTe ? articles.filter((a) => !isHanoi(a)) : articles
+
   return (
     <div>
       {/* Breadcrumb */}
-      <div className="text-xs text-gray-400 mb-4">
+      <div className="text-xs text-gray-400 mb-4 flex items-center gap-1.5">
         <Link href="/" className="hover:text-blue-700">Trang chủ</Link>
-        <span className="mx-1">/</span>
+        <span>/</span>
         <span className="text-gray-600">{topic.name}</span>
       </div>
 
@@ -51,47 +91,40 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
         <span className="text-xs text-gray-400">{articles.length} bài trong 24 giờ qua</span>
       </div>
 
-      {/* Topic pills */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {TOPICS.map((t) => (
-          <Link
-            key={t.slug}
-            href={`/topics/${t.slug}`}
-            className={`text-xs px-3 py-1 border transition-colors ${
-              t.slug === slug
-                ? 'bg-gray-900 text-white border-gray-900'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {t.name}
-          </Link>
-        ))}
-      </div>
+      {isKinhTe ? (
+        <>
+          {/* Hà Nội section */}
+          {hanoiArticles.length > 0 && (
+            <section className="mb-10">
+              <div className="flex items-baseline justify-between border-b border-gray-200 pb-2 mb-5">
+                <h2 className="font-black text-xs uppercase tracking-widest text-red-700">
+                  Hà Nội
+                </h2>
+                <span className="text-xs text-gray-400">{hanoiArticles.length} bài</span>
+              </div>
+              <ArticleList articles={hanoiArticles} />
+            </section>
+          )}
 
-      {articles.length === 0 ? (
-        <p className="text-gray-400 text-sm py-8 text-center">Không có bài viết nào trong 24 giờ qua.</p>
+          {/* Other kinh-te */}
+          {otherArticles.length > 0 && (
+            <section>
+              <div className="flex items-baseline justify-between border-b border-gray-200 pb-2 mb-5">
+                <h2 className="font-black text-xs uppercase tracking-widest text-gray-500">
+                  Toàn quốc
+                </h2>
+                <span className="text-xs text-gray-400">{otherArticles.length} bài</span>
+              </div>
+              <ArticleList articles={otherArticles} />
+            </section>
+          )}
+        </>
       ) : (
-        <div className="space-y-5">
-          {articles.map((a) => (
-            <a
-              key={a.id}
-              href={a.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block group border-b border-gray-100 pb-5 last:border-0"
-            >
-              <p className="text-xs text-gray-400 mb-1">
-                {a.source} · {timeAgo(a.published_at || a.collected_at)}
-              </p>
-              <p className="font-bold text-gray-900 group-hover:text-blue-700 leading-snug text-base">
-                {a.title}
-              </p>
-              {a.content && (
-                <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">{excerpt(a.content)}</p>
-              )}
-            </a>
-          ))}
-        </div>
+        articles.length === 0 ? (
+          <p className="text-gray-400 text-sm py-8 text-center">Không có bài viết nào trong 24 giờ qua.</p>
+        ) : (
+          <ArticleList articles={articles} />
+        )
       )}
     </div>
   )
