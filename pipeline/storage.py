@@ -39,7 +39,7 @@ def get_articles_today() -> list[dict]:
     return result.data or []
 
 
-def insert_report(report_date: str, analysis: dict, raw_markdown: str) -> None:
+def insert_report(report_date: str, analysis: dict, raw_markdown: str, article_count: int = 0, source_count: int = 0) -> None:
     """Insert a daily report. Raises if date already exists."""
     client = _get_client()
     client.table("reports").insert({
@@ -49,6 +49,8 @@ def insert_report(report_date: str, analysis: dict, raw_markdown: str) -> None:
         "watch_list": analysis.get("watch_list", []),
         "predictions": analysis.get("predictions", {}),
         "raw_markdown": raw_markdown,
+        "article_count": article_count,
+        "source_count": source_count,
     }).execute()
 
 
