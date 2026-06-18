@@ -3,8 +3,8 @@ import './globals.css'
 import NavBar from '@/components/NavBar'
 
 export const metadata: Metadata = {
-  title: 'Vietnam Market Intelligence',
-  description: 'Tin tức & phân tích thị trường Việt Nam hàng ngày',
+  title: 'Góc Nhìn Thị Trường của AI',
+  description: 'Tin tức & phân tích thị trường Việt Nam hàng ngày do AI tổng hợp',
   icons: { icon: '/favicon.svg' },
 }
 
@@ -36,8 +36,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="border-b-2 border-gray-900 py-4">
             <div className="max-w-5xl mx-auto px-4 flex items-center justify-center gap-3">
               <BarChartIcon />
-              <a href="/" className="font-black text-3xl tracking-tight text-gray-900 uppercase leading-none">
-                Vietnam Market Intelligence
+              <a href="/" className="font-black text-3xl tracking-tight text-gray-900 leading-none">
+                Góc Nhìn Thị Trường của AI
               </a>
               <BarChartIcon />
             </div>
@@ -48,8 +48,58 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
 
-        <footer className="border-t border-gray-200 mt-12 py-6 text-center text-xs text-gray-400 bg-white">
-          Vietnam Market Intelligence — Dữ liệu cập nhật tự động mỗi ngày
+        <footer className="border-t-2 border-gray-900 mt-16 bg-white">
+          <div className="max-w-5xl mx-auto px-4 py-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+
+              {/* Brand */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChartIcon />
+                  <span className="font-black text-sm uppercase tracking-tight text-gray-900">
+                    Góc Nhìn Thị Trường của AI
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Tin tức và phân tích thị trường Việt Nam tổng hợp tự động từ 13+ nguồn báo uy tín,
+                  phân tích bằng AI Gemini mỗi ngày lúc 7:00 sáng.
+                </p>
+              </div>
+
+              {/* Navigation */}
+              <div>
+                <p className="font-black text-xs uppercase tracking-widest text-gray-900 mb-3">Chuyên mục</p>
+                <ul className="space-y-2 text-xs text-gray-500">
+                  <li><a href="/topics/bat-dong-san" className="hover:text-gray-900">Bất động sản Hà Nội</a></li>
+                  <li><a href="/topics/vang" className="hover:text-gray-900">Vàng SJC</a></li>
+                  <li><a href="/topics/cong-nghe" className="hover:text-gray-900">Khoa học & Công nghệ</a></li>
+                  <li><a href="/reports" className="hover:text-gray-900">Báo cáo AI hàng ngày</a></li>
+                </ul>
+              </div>
+
+              {/* Data sources */}
+              <div>
+                <p className="font-black text-xs uppercase tracking-widest text-gray-900 mb-3">Nguồn dữ liệu</p>
+                <p className="text-xs text-gray-500 leading-relaxed mb-2">
+                  VnEconomy · Tuổi Trẻ · Thanh Niên · VnExpress · CafeF · Nhịp cầu Đầu tư
+                  · Dân Trí · Zing News · VietnamNet và các nguồn khác.
+                </p>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Giá vàng: Yahoo Finance (GC=F, USDVND=X) · Phân tích: Google Gemini 2.5 Flash
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom bar */}
+            <div className="border-t border-gray-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-2">
+              <p className="text-xs text-gray-400">
+                Dữ liệu tự động · Không phải khuyến nghị đầu tư
+              </p>
+              <p className="text-xs text-gray-400">
+                Cập nhật mỗi ngày 7:00 AM ICT · {new Date().getFullYear()} Góc Nhìn Thị Trường của AI
+              </p>
+            </div>
+          </div>
         </footer>
       </body>
     </html>
