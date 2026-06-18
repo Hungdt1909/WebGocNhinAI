@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo cáo Thị trường Việt Nam</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; max-width: 700px; margin: 0 auto; padding: 16px; color: #333; background: #fff; }
+    h1 { color: #1a5276; border-bottom: 3px solid #1a5276; padding-bottom: 10px; font-size: 22px; }
+    h2 { color: #2e86c1; margin-top: 28px; margin-bottom: 8px; font-size: 18px; border-left: 4px solid #2e86c1; padding-left: 10px; }
+    h3 { color: #1a5276; margin-top: 20px; margin-bottom: 6px; font-size: 15px; }
+    p { line-height: 1.7; margin: 6px 0; }
+    strong { color: #1a5276; }
+    em { color: #777; font-style: italic; }
+    ul { margin: 6px 0; padding-left: 20px; }
+    li { line-height: 1.7; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 24px 0; }
+    .footer { color: #999; font-size: 12px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; text-align: center; }
+    blockquote { border-left: 3px solid #ddd; margin: 8px 0; padding: 4px 12px; color: #555; }
+    code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-size: 13px; }
+    @media (max-width: 600px) { body { padding: 8px; } h1 { font-size: 18px; } h2 { font-size: 16px; } }
+  </style>
+</head>
+<body>
+  {{CONTENT}}
+  <div class="footer">
+    Báo cáo tự động &mdash; {{DATE}} &mdash; {{SOURCE_COUNT}} nguồn tin &mdash; {{ARTICLE_COUNT}} tin tức
+  </div>
+</body>
+</html>
